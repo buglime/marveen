@@ -1,3 +1,4 @@
+import { hostname } from 'node:os'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { readEnvFile } from './env.js'
@@ -37,6 +38,23 @@ export const OLLAMA_URL = env['OLLAMA_URL'] ?? 'http://localhost:11434'
 export const CHANNEL_PROVIDER: ChannelProviderType = getProviderType(env['CHANNEL_PROVIDER'])
 export const CHANNEL_TOKEN = getChannelToken(CHANNEL_PROVIDER, env)
 export const CHANNEL_CHAT_ID = getChannelChatId(CHANNEL_PROVIDER, env)
+
+// Respawn / keep-alive host gate.
+// The fleet (main agent + every sub-agent) is only kept alive / auto-restarted
+// on the production host (defji.hu / hostname `defji-marveen`). On any other
+// machine (e.g. a local dev checkout) the channel-plugin monitor must NOT
+// respawn or restart anything, so a developer machine never fights the server
+// over the same bot tokens.
+//   RESPAWN_HOST   -- substring matched against the OS hostname (default "defji")
+//   RESPAWN_ENABLED -- explicit override: "1"/"true" forces on, "0"/"false" forces off
+const RESPAWN_HOST = (env['RESPAWN_HOST'] ?? 'defji').toLowerCase()
+const RESPAWN_OVERRIDE = (env['RESPAWN_ENABLED'] ?? '').toLowerCase()
+export const RESPAWN_ENABLED =
+  RESPAWN_OVERRIDE === '1' || RESPAWN_OVERRIDE === 'true'
+    ? true
+    : RESPAWN_OVERRIDE === '0' || RESPAWN_OVERRIDE === 'false'
+      ? false
+      : hostname().toLowerCase().includes(RESPAWN_HOST)
 
 // Heartbeat
 export const HEARTBEAT_INTERVAL_MS = 60 * 60 * 1000 // 1 hour
