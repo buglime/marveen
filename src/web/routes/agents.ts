@@ -79,6 +79,7 @@ import {
   sendPromptToSession,
   capturePane,
 } from '../agent-process.js'
+import { addDesiredAgent, removeDesiredAgent } from '../agent-desired-state.js'
 import { readActiveModelFromProjectDir } from '../active-model.js'
 import { detectPaneState } from '../../pane-state.js'
 import { attemptChannelMcpReconnect } from '../channel-mcp-reconnect.js'
@@ -1157,6 +1158,9 @@ export async function tryHandleAgents(ctx: RouteContext, webDir: string): Promis
     const name = decodeURIComponent(startMatch[1])
     if (!existsSync(agentDir(name))) { json(res, { error: 'Agent not found' }, 404); return true }
     const result = startAgentProcess(name)
+    // Record operator intent so the monitor keeps this agent up across shared
+    // tmux-server restarts / reboots (see agent-desired-state.ts).
+    if (result.ok || result.error === 'Agent is already running') addDesiredAgent(name)
     if (result.ok) { json(res, { ok: true }); return true }
     json(res, { error: result.error }, 400)
     return true
@@ -1166,6 +1170,8 @@ export async function tryHandleAgents(ctx: RouteContext, webDir: string): Promis
   if (stopMatch && method === 'POST') {
     const name = decodeURIComponent(stopMatch[1])
     const result = stopAgentProcess(name)
+    // Explicit stop clears intent so the monitor will not resurrect it.
+    removeDesiredAgent(name)
     if (result.ok) { json(res, { ok: true }); return true }
     json(res, { error: result.error }, 400)
     return true
