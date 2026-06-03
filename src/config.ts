@@ -39,22 +39,26 @@ export const CHANNEL_PROVIDER: ChannelProviderType = getProviderType(env['CHANNE
 export const CHANNEL_TOKEN = getChannelToken(CHANNEL_PROVIDER, env)
 export const CHANNEL_CHAT_ID = getChannelChatId(CHANNEL_PROVIDER, env)
 
-// Respawn / keep-alive host gate.
-// The fleet (main agent + every sub-agent) is only kept alive / auto-restarted
-// on the production host (defji.hu / hostname `defji-marveen`). On any other
-// machine (e.g. a local dev checkout) the channel-plugin monitor must NOT
-// respawn or restart anything, so a developer machine never fights the server
-// over the same bot tokens.
-//   RESPAWN_HOST   -- substring matched against the OS hostname (default "defji")
-//   RESPAWN_ENABLED -- explicit override: "1"/"true" forces on, "0"/"false" forces off
-const RESPAWN_HOST = (env['RESPAWN_HOST'] ?? 'defji').toLowerCase()
+// Respawn / keep-alive gate.
+// The in-process channel-plugin monitor (main-agent respawn + sub-agent
+// auto-restart) must run on exactly ONE machine. When the same checkout runs
+// on more than one host (e.g. a dev box alongside the production host), each
+// would independently respawn agents and the two would fight over the same bot
+// tokens / getUpdates slot. Gate it so only the intended host keeps agents alive.
+//   RESPAWN_ENABLED -- "1"/"true" forces on, "0"/"false" forces off
+//   RESPAWN_HOST    -- optional substring matched against the OS hostname; when
+//                      set, respawn is enabled only on a host whose name matches
+// Default (neither set): enabled, so a single-host install needs no config.
+const RESPAWN_HOST = (env['RESPAWN_HOST'] ?? '').toLowerCase()
 const RESPAWN_OVERRIDE = (env['RESPAWN_ENABLED'] ?? '').toLowerCase()
 export const RESPAWN_ENABLED =
   RESPAWN_OVERRIDE === '1' || RESPAWN_OVERRIDE === 'true'
     ? true
     : RESPAWN_OVERRIDE === '0' || RESPAWN_OVERRIDE === 'false'
       ? false
-      : hostname().toLowerCase().includes(RESPAWN_HOST)
+      : RESPAWN_HOST
+        ? hostname().toLowerCase().includes(RESPAWN_HOST)
+        : true
 
 // Heartbeat
 export const HEARTBEAT_INTERVAL_MS = 60 * 60 * 1000 // 1 hour
